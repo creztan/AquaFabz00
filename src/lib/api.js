@@ -20,6 +20,12 @@ async function apiFetch(url, options = {}) {
   const res = await fetch(url, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401 && !String(url).includes("/api/auth/login")) {
+      setToken(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aqua-fabz-unauthorized"));
+      }
+    }
     const err = new Error(data.error || "Request failed");
     err.status = res.status;
     err.data = data;

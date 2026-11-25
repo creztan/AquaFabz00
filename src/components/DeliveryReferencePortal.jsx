@@ -75,7 +75,7 @@ const DeliveryReferencePortal = ({
           landmark: d.landmark_notes,
           lat: d.lat,
           lng: d.lng,
-          kind: d.status === "Delivered" ? "customer" : "pending"
+          kind: d.status === "Delivered" ? "delivered" : "pending"
         });
       }
     });

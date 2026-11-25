@@ -86,23 +86,69 @@ function nextCode(prefix, table, column) {
 // -------------------------------------------------------------
 // Public & Station Info Routes
 // -------------------------------------------------------------
-app.get("/api/station", (_req, res) => {
+function getStationInfo() {
   const setting = db.prepare("SELECT * FROM settings WHERE id = 'set_station_main'").get();
-  let coords = { lat: 10.1935, lng: 122.8586 };
+  let coords = { lat: STATION_INFO.lat, lng: STATION_INFO.lng };
   if (setting?.coordinates_json) {
     try {
-      coords = JSON.parse(setting.coordinates_json);
+      const parsed = JSON.parse(setting.coordinates_json);
+      if (parsed.lat !== undefined && !Number.isNaN(Number(parsed.lat))) coords.lat = Number(parsed.lat);
+      if (parsed.lng !== undefined && !Number.isNaN(Number(parsed.lng))) coords.lng = Number(parsed.lng);
     } catch {}
   }
+  return {
+    ...STATION_INFO,
+    ...(setting || {}),
+    name: setting?.station_name || STATION_INFO.name,
+    address: setting?.address || STATION_INFO.address,
+    contact: setting?.contact_number || STATION_INFO.contact,
+    lat: coords.lat,
+    lng: coords.lng
+  };
+}
+
+app.get("/api/station", (_req, res) => {
   res.json({
-    station: {
-      ...STATION_INFO,
-      ...(setting || {}),
-      lat: coords.lat,
-      lng: coords.lng
-    },
+    station: getStationInfo(),
     deliveryPersonnel: DELIVERY_PERSONNEL_ROSTER
   });
+});
+
+app.put("/api/station", requireAuth, requireAdmin, (req, res) => {
+  const admin = req.user;
+  const current = getStationInfo();
+  const stationName = String(req.body?.name ?? req.body?.station_name ?? current.name).trim();
+  const address = String(req.body?.address ?? current.address).trim();
+  const barangay = String(req.body?.barangay ?? current.barangay ?? "Brgy. Poblacion").trim();
+  const city = String(req.body?.city ?? current.city ?? "Binalbagan").trim();
+  const province = String(req.body?.province ?? current.province ?? "Negros Occidental").trim();
+  const contactNumber = String(req.body?.contact ?? req.body?.contact_number ?? current.contact).trim();
+  const lat = Number(req.body?.lat);
+  const lng = Number(req.body?.lng);
+
+  if (!stationName || !address) {
+    return res.status(400).json({ error: "Station name and address are required." });
+  }
+  if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return res.status(400).json({ error: "Valid latitude and longitude coordinates are required." });
+  }
+
+  const coordsJson = JSON.stringify({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+  db.prepare(`
+    UPDATE settings
+    SET station_name = ?, address = ?, barangay = ?, city = ?, province = ?, contact_number = ?, coordinates_json = ?
+    WHERE id = 'set_station_main'
+  `).run(stationName, address, barangay, city, province, contactNumber, coordsJson);
+
+  logActivity(
+    admin.id,
+    admin.username,
+    admin.role,
+    "STATION_UPDATE",
+    `Updated station location to ${address} (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+    "Settings"
+  );
+  res.json({ station: getStationInfo() });
 });
 
 app.get("/api/settings", requireAuth, (_req, res) => {
@@ -186,7 +232,7 @@ app.get("/api/public/overview", (_req, res) => {
   ).all();
 
   res.json({
-    station: STATION_INFO,
+    station: getStationInfo(),
     products,
     vendingMachines,
     serviceAreas: areaRows.map((r) => r.barangay)
@@ -248,7 +294,7 @@ app.get("/api/public/delivery-reference", (req, res) => {
   });
 
   res.json({
-    station: STATION_INFO,
+    station: getStationInfo(),
     personnelRoster: DELIVERY_PERSONNEL_ROSTER,
     deliveries
   });
@@ -270,7 +316,7 @@ app.get("/api/public/delivery-reference/:token", (req, res) => {
     lng = parsed.lng || lng;
   } catch {}
   res.json({
-    station: STATION_INFO,
+    station: getStationInfo(),
     delivery: {
       id: o.id,
       delivery_no: `DEL-${o.order_number.replace(/^ORD-/, "")}`,
@@ -2098,7 +2144,7 @@ app.get("/api/admin/delivery-areas", requireAuth, requireAdmin, (req, res) => {
   }
 
   res.json({
-    station: STATION_INFO,
+    station: getStationInfo(),
     locations: filteredLocations,
     allBarangays,
     areaFrequency

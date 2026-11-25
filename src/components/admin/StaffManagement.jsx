@@ -16,7 +16,9 @@ const StaffManagement = () => {
     setLoading(true);
     try {
       const res = await apiFetch("/api/staff");
-      setAccounts(res.accounts);
+      setAccounts(Array.isArray(res.accounts) ? res.accounts : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load staff accounts.");
     } finally {
       setLoading(false);
     }
@@ -76,15 +78,21 @@ const StaffManagement = () => {
     }
   };
   const toggleStatus = async (acc) => {
-    const nextStatus = acc.status === "active" ? "inactive" : "active";
-    await apiFetch(`/api/staff/${acc.id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: nextStatus })
-    });
-    setSuccess(
-      nextStatus === "inactive" ? `Deactivated "${acc.username}". Past records are preserved.` : `Reactivated "${acc.username}".`
-    );
-    loadAccounts();
+    setError("");
+    setSuccess("");
+    try {
+      const nextStatus = acc.status === "active" ? "inactive" : "active";
+      await apiFetch(`/api/staff/${acc.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus })
+      });
+      setSuccess(
+        nextStatus === "inactive" ? `Deactivated "${acc.username}". Past records are preserved.` : `Reactivated "${acc.username}".`
+      );
+      loadAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update staff status.");
+    }
   };
   return <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -108,6 +116,10 @@ const StaffManagement = () => {
 
       {success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">
           {success}
+        </div>}
+
+      {error && !showForm && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+          {error}
         </div>}
 
       {showForm && <form

@@ -27,7 +27,9 @@ const ProductsManagement = () => {
     setLoading(true);
     try {
       const res = await apiFetch("/api/products");
-      setProducts(res.products);
+      setProducts(Array.isArray(res.products) ? res.products : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load products.");
     } finally {
       setLoading(false);
     }

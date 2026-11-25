@@ -9,9 +9,25 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const dbPath = path.join(dataDir, "aqua_fabz.db");
-const db = new Database(dbPath);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+let db;
+try {
+  db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+} catch (err) {
+  console.error("Database error or corruption detected, recreating DB...", err);
+  try {
+    if (db) db.close();
+  } catch {}
+  try {
+    fs.unlinkSync(dbPath);
+    if (fs.existsSync(`${dbPath}-wal`)) fs.unlinkSync(`${dbPath}-wal`);
+    if (fs.existsSync(`${dbPath}-shm`)) fs.unlinkSync(`${dbPath}-shm`);
+  } catch {}
+  db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+}
 
 const STATION_INFO = {
   id: "set_station_main",
@@ -670,6 +686,17 @@ function seedInitialData() {
   const c3 = "cust_003";
   const c4 = "cust_004";
   const c5 = "cust_005";
+  const c6 = "cust_006";
+  const c7 = "cust_007";
+  const c8 = "cust_008";
+  const c9 = "cust_009";
+  const c10 = "cust_010";
+  const c11 = "cust_011";
+  const c12 = "cust_012";
+  const c13 = "cust_013";
+  const c14 = "cust_014";
+  const c15 = "cust_015";
+  const c16 = "cust_016";
 
   insertCustomer.run(
     c1,
@@ -773,6 +800,215 @@ function seedInitialData() {
     3,
     1225.00,
     dateOnlyDaysAgo(50),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c6,
+    "Esteban Ramos",
+    "0919-321-4321",
+    "esteban.ramos@gmail.com",
+    "regular",
+    "Purok Manga, Brgy. Payao, Binalbagan",
+    "Brgy. Payao",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1812, lng: 122.8432 }),
+    "Near Payao barangay outpost",
+    2,
+    2,
+    250.00,
+    dateOnlyDaysAgo(15),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c7,
+    "Amontay Resident Group",
+    "0917-111-2233",
+    "amontay.water@gmail.com",
+    "regular",
+    "Main Road, Brgy. Amontay, Binalbagan",
+    "Brgy. Amontay",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1745, lng: 122.8521 }),
+    "Near Amontay chapel",
+    1,
+    1,
+    125.00,
+    dateOnlyDaysAgo(12),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c8,
+    "Baguer Community Store",
+    "0918-222-3344",
+    "baguer.store@yahoo.com",
+    "reseller",
+    "Purok Centro, Brgy. Baguer, Binalbagan",
+    "Brgy. Baguer",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.2112, lng: 122.8415 }),
+    "Beside Baguer barangay hall",
+    5,
+    3,
+    750.00,
+    dateOnlyDaysAgo(18),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c9,
+    "Bi-ao Agricultural Supply",
+    "0920-333-4455",
+    "biao.agri@gmail.com",
+    "regular",
+    "Highway, Brgy. Bi-ao, Binalbagan",
+    "Brgy. Bi-ao",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1689, lng: 122.8702 }),
+    "Near Bi-ao junction",
+    2,
+    2,
+    260.00,
+    dateOnlyDaysAgo(22),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c10,
+    "Camalobalo Homestay",
+    "0919-444-5566",
+    "camalobalo.stay@gmail.com",
+    "regular",
+    "Sitio Proper, Brgy. Camalobalo, Binalbagan",
+    "Brgy. Camalobalo",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1834, lng: 122.8791 }),
+    "Bamboo fence entrance",
+    2,
+    1,
+    130.00,
+    dateOnlyDaysAgo(10),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c11,
+    "Canmoros General Store",
+    "0917-555-6677",
+    "canmoros.store@gmail.com",
+    "regular",
+    "Main Road, Brgy. Canmoros, Binalbagan",
+    "Brgy. Canmoros",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1982, lng: 122.8510 }),
+    "Opposite Canmoros waiting shed",
+    3,
+    2,
+    380.00,
+    dateOnlyDaysAgo(14),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c12,
+    "Hospital Site Pharmacy",
+    "0920-666-7788",
+    "hospitalsite.med@gmail.com",
+    "reseller",
+    "Zone 2, Brgy. Hospital Site, Binalbagan",
+    "Brgy. Hospital Site",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1920, lng: 122.8601 }),
+    "Near Binalbagan District Hospital",
+    6,
+    4,
+    920.00,
+    dateOnlyDaysAgo(28),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c13,
+    "Marina Coastal Depot",
+    "0918-777-8899",
+    "marina.depot@yahoo.com",
+    "reseller",
+    "Shoreline Rd, Brgy. Marina, Binalbagan",
+    "Brgy. Marina",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.2045, lng: 122.8489 }),
+    "Near fish landing port",
+    8,
+    5,
+    1450.00,
+    dateOnlyDaysAgo(35),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c14,
+    "San Jose Family Mart",
+    "0919-888-9900",
+    "sanjose.mart@gmail.com",
+    "regular",
+    "Purok Star, Brgy. San Jose, Binalbagan",
+    "Brgy. San Jose",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1798, lng: 122.8624 }),
+    "Beside San Jose elementary school",
+    2,
+    2,
+    270.00,
+    dateOnlyDaysAgo(16),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c15,
+    "Santo Rosario Parish Center",
+    "0917-999-0011",
+    "santorosario.parish@gmail.com",
+    "regular",
+    "Church Rd, Brgy. Santo Rosario, Binalbagan",
+    "Brgy. Santo Rosario",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.1876, lng: 122.8680 }),
+    "Gate facing church plaza",
+    4,
+    3,
+    510.00,
+    dateOnlyDaysAgo(24),
+    "active",
+    JSON.stringify([])
+  );
+
+  insertCustomer.run(
+    c16,
+    "Tiaong Agro Enterprise",
+    "0920-000-1122",
+    "tiaong.agro@gmail.com",
+    "reseller",
+    "Sitio Riverside, Brgy. Tiaong, Binalbagan",
+    "Brgy. Tiaong",
+    "Binalbagan",
+    JSON.stringify({ lat: 10.2154, lng: 122.8732 }),
+    "Near Tiaong hanging bridge",
+    10,
+    6,
+    1820.00,
+    dateOnlyDaysAgo(40),
     "active",
     JSON.stringify([])
   );

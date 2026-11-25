@@ -5,7 +5,7 @@ const StaffOverview = ({ onNavigate }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    apiFetch("/api/staff/overview").then(setData).finally(() => setLoading(false));
+    apiFetch("/api/staff/overview").then(setData).catch(() => {}).finally(() => setLoading(false));
   }, []);
   if (loading || !data) {
     return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">

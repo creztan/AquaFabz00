@@ -142,6 +142,18 @@ function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   useEffect(() => {
+    const onUnauthorized = () => {
+      setToken(null);
+      setUser(null);
+      setActiveTab("");
+      setDeliveryPortalMode(false);
+      setLoginViewMode(true);
+      window.location.hash = "login";
+    };
+    window.addEventListener("aqua-fabz-unauthorized", onUnauthorized);
+    return () => window.removeEventListener("aqua-fabz-unauthorized", onUnauthorized);
+  }, []);
+  useEffect(() => {
     const token = getToken();
     if (!token) {
       setAuthChecked(true);

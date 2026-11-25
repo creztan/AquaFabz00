@@ -236,9 +236,11 @@ const LandingPage = ({ onOpenLogin, onOpenDeliveryPortal }) => {
             <div className="p-5">
               <div className="text-xs font-medium text-slate-500">Main Station</div>
               <div className="mt-1.5 text-sm font-semibold text-slate-900">
-                Rizal St., Brgy. Poblacion
+                {station.address}
               </div>
-              <div className="mt-1 text-xs text-slate-500">Binalbagan, Negros Occidental</div>
+              <div className="mt-1 text-xs text-slate-500">
+                {station.city && station.province ? `${station.city}, ${station.province}` : "Binalbagan, Negros Occidental"}
+              </div>
             </div>
             <div className="p-5">
               <div className="text-xs font-medium text-slate-500">Active Products</div>
