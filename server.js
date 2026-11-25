@@ -757,14 +757,19 @@ app.post("/api/inventory/move", requireAuth, requireStaff, (req, res) => {
 // Customers & Location Mapping Routes (ERD JSON fields)
 // -------------------------------------------------------------
 function extractLocations(customer) {
-  let primaryCoords = { lat: 10.1935, lng: 122.8586 };
-  try {
-    primaryCoords = JSON.parse(customer.coordinates_json || "{}");
-    if (!primaryCoords.lat) primaryCoords = { lat: 10.1935, lng: 122.8586 };
-  } catch {}
+  const locs = [];
+  let primaryCoords = null;
+  if (customer.coordinates_json) {
+    try {
+      const parsed = JSON.parse(customer.coordinates_json);
+      if (parsed.lat !== undefined && parsed.lng !== undefined && !Number.isNaN(Number(parsed.lat))) {
+        primaryCoords = { lat: Number(parsed.lat), lng: Number(parsed.lng) };
+      }
+    } catch {}
+  }
 
-  const locs = [
-    {
+  if (primaryCoords) {
+    locs.push({
       id: `loc_${customer.id}_primary`,
       label: "Primary Residence",
       address: customer.primary_address,
@@ -773,24 +778,26 @@ function extractLocations(customer) {
       lat: primaryCoords.lat,
       lng: primaryCoords.lng,
       is_primary: 1
-    }
-  ];
+    });
+  }
 
   if (customer.additional_locations_json) {
     try {
       const extra = JSON.parse(customer.additional_locations_json);
       if (Array.isArray(extra)) {
         extra.forEach((e, idx) => {
-          locs.push({
-            id: e.id || `loc_${customer.id}_extra_${idx}`,
-            label: e.label || `Location ${idx + 2}`,
-            address: e.address || customer.primary_address,
-            barangay: e.barangay || customer.barangay,
-            landmark_notes: e.landmark_notes || "",
-            lat: Number(e.lat || primaryCoords.lat),
-            lng: Number(e.lng || primaryCoords.lng),
-            is_primary: 0
-          });
+          if (e.lat !== undefined && e.lng !== undefined && !Number.isNaN(Number(e.lat))) {
+            locs.push({
+              id: e.id || `loc_${customer.id}_extra_${idx}`,
+              label: e.label || `Location ${idx + 2}`,
+              address: e.address || customer.primary_address,
+              barangay: e.barangay || customer.barangay,
+              landmark_notes: e.landmark_notes || "",
+              lat: Number(e.lat),
+              lng: Number(e.lng),
+              is_primary: 0
+            });
+          }
         });
       }
     } catch {}
@@ -858,13 +865,17 @@ app.post("/api/customers", requireAuth, requireStaff, (req, res) => {
 
   const id = generateId("cust");
   const today = new Date().toISOString().slice(0, 10);
-  let coords = { lat: 10.1968, lng: 122.8612 };
+  let coords = null;
   let additionalLocs = [];
 
   if (Array.isArray(req.body?.locations) && req.body.locations.length > 0) {
     const primary = req.body.locations[0];
-    coords = { lat: Number(primary.lat || 10.1968), lng: Number(primary.lng || 122.8612) };
+    if (primary.lat !== undefined && primary.lng !== undefined && !Number.isNaN(Number(primary.lat))) {
+      coords = { lat: Number(primary.lat), lng: Number(primary.lng) };
+    }
     additionalLocs = req.body.locations.slice(1);
+  } else if (req.body?.lat !== undefined && req.body?.lng !== undefined && !Number.isNaN(Number(req.body.lat))) {
+    coords = { lat: Number(req.body.lat), lng: Number(req.body.lng) };
   }
 
   db.prepare(`
@@ -882,7 +893,7 @@ app.post("/api/customers", requireAuth, requireStaff, (req, res) => {
     address,
     req.body?.barangay || "Brgy. Poblacion",
     "Binalbagan",
-    JSON.stringify(coords),
+    coords ? JSON.stringify(coords) : null,
     req.body?.notes || req.body?.delivery_notes || "",
     today,
     JSON.stringify(additionalLocs)
@@ -913,6 +924,32 @@ app.put("/api/customers/:id", requireAuth, requireStaff, (req, res) => {
   logActivity(req.user.id, req.user.username, req.user.role, "CUSTOMER_UPDATE", `Updated customer ${name}`, "Customer");
   const updated = db.prepare("SELECT * FROM customers WHERE id = ?").get(id);
   res.json({ customer: { ...updated, address: updated.primary_address, locations: extractLocations(updated) } });
+});
+
+app.delete("/api/customers/:id", requireAuth, requireStaff, (req, res) => {
+  const id = String(req.params.id || "").trim();
+  const target = db.prepare("SELECT * FROM customers WHERE id = ?").get(id);
+  if (!target) {
+    res.status(404).json({ error: "Customer not found." });
+    return;
+  }
+
+  db.transaction(() => {
+    db.prepare("UPDATE orders SET customer_id = NULL WHERE customer_id = ?").run(id);
+    db.prepare("UPDATE sales SET customer_id = NULL WHERE customer_id = ?").run(id);
+    db.prepare("UPDATE containers SET customer_id = NULL WHERE customer_id = ?").run(id);
+    db.prepare("DELETE FROM customers WHERE id = ?").run(id);
+    logActivity(
+      req.user.id,
+      req.user.username,
+      req.user.role,
+      "CUSTOMER_DELETE",
+      `Deleted customer profile ${target.name} (${target.contact_number})`,
+      "Customer"
+    );
+  })();
+
+  res.json({ ok: true, id });
 });
 
 app.post("/api/customers/:id/locations", requireAuth, requireStaff, (req, res) => {
@@ -1009,19 +1046,24 @@ app.put("/api/locations/:id", requireAuth, requireStaff, (req, res) => {
 
 app.delete("/api/locations/:id", requireAuth, requireStaff, (req, res) => {
   const locId = String(req.params.id);
-  // Find customer with this location in additional_locations_json
-  const customers = db.prepare("SELECT id, additional_locations_json FROM customers").all();
+  const customers = db.prepare("SELECT * FROM customers").all();
   for (const c of customers) {
+    if (locId === `loc_${c.id}_primary`) {
+      db.prepare("UPDATE customers SET coordinates_json = NULL WHERE id = ?").run(c.id);
+      logActivity(req.user.id, req.user.username, req.user.role, "LOCATION_DELETE", `Removed primary pin for ${c.name}`, "Location");
+      return res.json({ ok: true });
+    }
     try {
       const list = JSON.parse(c.additional_locations_json || "[]");
       const filtered = list.filter((l) => l.id !== locId);
       if (filtered.length !== list.length) {
         db.prepare("UPDATE customers SET additional_locations_json = ? WHERE id = ?").run(JSON.stringify(filtered), c.id);
+        logActivity(req.user.id, req.user.username, req.user.role, "LOCATION_DELETE", `Removed location pin for ${c.name}`, "Location");
         return res.json({ ok: true });
       }
     } catch {}
   }
-  res.json({ ok: true });
+  res.status(404).json({ error: "Location not found." });
 });
 
 app.get("/api/customers/:id/history", requireAuth, (req, res) => {
@@ -2087,65 +2129,46 @@ app.get("/api/admin/sales-summary", requireAuth, requireAdmin, (req, res) => {
   });
 });
 
+const BINALBAGAN_BARANGAYS = [
+  { name: "Brgy. Poblacion", lat: 10.1935, lng: 122.8586, desc: "Town Center & Commercial District" },
+  { name: "Brgy. San Pedro", lat: 10.1968, lng: 122.8612, desc: "Residential Zone North" },
+  { name: "Brgy. Progreso", lat: 10.1904, lng: 122.8531, desc: "Progreso District & School Area" },
+  { name: "Brgy. San Vicente", lat: 10.1892, lng: 122.8639, desc: "San Vicente Plaza & Covered Court" },
+  { name: "Brgy. Enclaro", lat: 10.2008, lng: 122.8655, desc: "CHMSU Campus & Suburban Sector" },
+  { name: "Brgy. Payao", lat: 10.1812, lng: 122.8432, desc: "Payao Agricultural Zone" },
+  { name: "Brgy. Amontay", lat: 10.1745, lng: 122.8521, desc: "Amontay Coastal & Chapel Sector" },
+  { name: "Brgy. Baguer", lat: 10.2112, lng: 122.8415, desc: "Baguer Rural Center" },
+  { name: "Brgy. Bi-ao", lat: 10.1689, lng: 122.8702, desc: "Bi-ao Agricultural Highway" },
+  { name: "Brgy. Camalobalo", lat: 10.1834, lng: 122.8791, desc: "Camalobalo Interior Settlement" },
+  { name: "Brgy. Canmoros", lat: 10.1982, lng: 122.8510, desc: "Canmoros Riverside Area" },
+  { name: "Brgy. Hospital Site", lat: 10.1920, lng: 122.8601, desc: "District Hospital Zone" },
+  { name: "Brgy. Marina", lat: 10.2045, lng: 122.8489, desc: "Marina Coastal & Port District" },
+  { name: "Brgy. San Jose", lat: 10.1798, lng: 122.8624, desc: "San Jose Settlement & School" },
+  { name: "Brgy. Santo Rosario", lat: 10.1876, lng: 122.8680, desc: "Santo Rosario Parish Area" },
+  { name: "Brgy. Tiaong", lat: 10.2154, lng: 122.8732, desc: "Tiaong Riverside & Agricultural Zone" }
+];
+
 app.get("/api/admin/delivery-areas", requireAuth, requireAdmin, (req, res) => {
   const filterBarangay = String(req.query.barangay || "All").trim();
   const pendingOnly = req.query.pendingOnly === "true";
 
   const customers = db.prepare("SELECT * FROM customers").all();
-  const allLocations = [];
   const barangayCounts = {};
-
   customers.forEach((c) => {
-    const locs = extractLocations(c);
-    const deliveryCount = db.prepare(
-      "SELECT COUNT(*) as cnt FROM orders WHERE customer_id = ? AND status = 'Delivered'"
-    ).get(c.id).cnt;
-    const openOrdersCount = db.prepare(
-      "SELECT COUNT(*) as cnt FROM orders WHERE customer_id = ? AND status IN ('Pending', 'Preparing', 'Out for Delivery')"
-    ).get(c.id).cnt;
-
-    locs.forEach((l) => {
-      const item = {
-        id: l.id,
-        customer_id: c.id,
-        customer_name: c.name,
-        label: l.label,
-        address: l.address,
-        barangay: l.barangay,
-        landmark_notes: l.landmark_notes,
-        lat: l.lat,
-        lng: l.lng,
-        delivery_count: deliveryCount,
-        open_orders_count: openOrdersCount
-      };
-      allLocations.push(item);
-
-      if (!barangayCounts[l.barangay]) {
-        barangayCounts[l.barangay] = { locations: 0, deliveries: 0 };
-      }
-      barangayCounts[l.barangay].locations += 1;
-      barangayCounts[l.barangay].deliveries += deliveryCount;
-    });
+    const bName = c.barangay || "Brgy. Poblacion";
+    if (!barangayCounts[bName]) barangayCounts[bName] = { locations: 0, deliveries: 0 };
+    barangayCounts[bName].locations += 1;
   });
-
   const allBarangays = Object.keys(barangayCounts).sort();
   const areaFrequency = allBarangays.map((b) => ({
     barangay: b,
     locations: barangayCounts[b].locations,
-    deliveries: barangayCounts[b].deliveries
+    deliveries: 0
   }));
-
-  let filteredLocations = allLocations;
-  if (filterBarangay && filterBarangay !== "All") {
-    filteredLocations = filteredLocations.filter((l) => l.barangay === filterBarangay);
-  }
-  if (pendingOnly) {
-    filteredLocations = filteredLocations.filter((l) => l.open_orders_count > 0);
-  }
 
   res.json({
     station: getStationInfo(),
-    locations: filteredLocations,
+    locations: [],
     allBarangays,
     areaFrequency
   });
@@ -2225,10 +2248,14 @@ app.get("/api/admin/reports", requireAuth, requireAdmin, (req, res) => {
     case "locations": {
       const allCust = db.prepare("SELECT name, primary_address, barangay, coordinates_json FROM customers").all();
       rows = allCust.map((c) => {
-        let coords = "";
+        let coords = "Not pinned";
         try {
-          const p = JSON.parse(c.coordinates_json || "{}");
-          coords = `${p.lat}, ${p.lng}`;
+          if (c.coordinates_json) {
+            const p = JSON.parse(c.coordinates_json);
+            if (p.lat != null && p.lng != null) {
+              coords = `${p.lat}, ${p.lng}`;
+            }
+          }
         } catch {}
         return {
           customer_name: c.name,

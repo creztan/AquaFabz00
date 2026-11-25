@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, ClipboardList, Droplets, Edit2, History, MapPin, Plus, Search, ShoppingCart } from "lucide-react";
+import { AlertTriangle, ClipboardList, Droplets, Edit2, History, MapPin, Plus, Search, ShoppingCart, Trash2 } from "lucide-react";
 import { apiFetch, formatCurrency, formatDateTime } from "../../lib/api";
 const CustomersView = ({
   onOpenLocationMapping,
@@ -19,6 +19,8 @@ const CustomersView = ({
   const [customerType, setCustomerType] = useState("regular");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [historyData, setHistoryData] = useState(null);
   const [historyFilter, setHistoryFilter] = useState("all");
   const loadCustomers = async () => {
@@ -96,6 +98,32 @@ const CustomersView = ({
     setHistoryData(res);
     setHistoryFilter("all");
   };
+  const confirmDeleteCustomer = async () => {
+    if (!deleteTarget) return;
+    setError("");
+    setSuccess("");
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/customers/${deleteTarget.id}`, {
+        method: "DELETE"
+      });
+      if (historyData?.customer?.id === deleteTarget.id) {
+        setHistoryData(null);
+      }
+      if (editing?.id === deleteTarget.id) {
+        setShowForm(false);
+        setEditing(null);
+      }
+      setSuccess(`Deleted customer profile for ${deleteTarget.name}.`);
+      setDeleteTarget(null);
+      await loadCustomers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete customer profile.");
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
   return <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -117,6 +145,10 @@ const CustomersView = ({
 
       {success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">
           {success}
+        </div>}
+
+      {error && !showForm && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
+          {error}
         </div>}
 
       {showForm && <form
@@ -340,6 +372,14 @@ const CustomersView = ({
   >
                           <Edit2 className="h-3 w-3" /> Edit
                         </button>
+                        <button
+    type="button"
+    onClick={() => setDeleteTarget(c)}
+    className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50"
+    title="Delete customer profile"
+  >
+                          <Trash2 className="h-3 w-3" /> Delete
+                        </button>
                       </div>
                     </td>
                   </tr>)}
@@ -420,6 +460,49 @@ const CustomersView = ({
             </>}
         </div>
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 space-y-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-red-50 p-2 text-red-600 shrink-0">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Delete Customer Profile
+                </h3>
+                <p className="mt-1 text-xs text-slate-600">
+                  Are you sure you want to delete <strong>{deleteTarget.name}</strong> ({deleteTarget.contact_number})? Past sales and order records will keep their transaction history, but the customer profile and saved pins will be permanently removed.
+                </p>
+                {(deleteTarget.open_orders_count > 0 || deleteTarget.unreturned_containers > 0) && (
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                    Note: This customer currently has {deleteTarget.open_orders_count || 0} open order(s) and {deleteTarget.unreturned_containers || 0} unreturned container(s).
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteCustomer}
+                disabled={deleting}
+                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Profile"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>;
 };
 export {

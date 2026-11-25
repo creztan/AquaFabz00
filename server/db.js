@@ -9,25 +9,6 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const dbPath = path.join(dataDir, "aqua_fabz.db");
-let db;
-try {
-  db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-} catch (err) {
-  console.error("Database error or corruption detected, recreating DB...", err);
-  try {
-    if (db) db.close();
-  } catch {}
-  try {
-    fs.unlinkSync(dbPath);
-    if (fs.existsSync(`${dbPath}-wal`)) fs.unlinkSync(`${dbPath}-wal`);
-    if (fs.existsSync(`${dbPath}-shm`)) fs.unlinkSync(`${dbPath}-shm`);
-  } catch {}
-  db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-}
 
 const STATION_INFO = {
   id: "set_station_main",
@@ -82,6 +63,27 @@ function verifyPassword(password, stored) {
   // Plain fallback for demo seeds
   return password === "admin123" || password === "staff123";
 }
+
+let db;
+try {
+  db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+} catch (err) {
+  console.error("Database error or corruption detected, recreating DB...", err);
+  try {
+    if (db) db.close();
+  } catch {}
+  try {
+    fs.unlinkSync(dbPath);
+    if (fs.existsSync(`${dbPath}-wal`)) fs.unlinkSync(`${dbPath}-wal`);
+    if (fs.existsSync(`${dbPath}-shm`)) fs.unlinkSync(`${dbPath}-shm`);
+  } catch {}
+  db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+}
+initDatabase();
 
 function logActivity(userId, username, userRole, actionType, description, category = "System") {
   const now = new Date().toISOString();
@@ -184,7 +186,7 @@ function initDatabase() {
       primary_address VARCHAR(255) NOT NULL,
       barangay VARCHAR(100) NOT NULL,
       city VARCHAR(100) DEFAULT 'Binalbagan',
-      coordinates_json TEXT NOT NULL,
+      coordinates_json TEXT DEFAULT NULL,
       delivery_notes TEXT DEFAULT NULL,
       containers_held INT NOT NULL DEFAULT 0,
       total_orders INT NOT NULL DEFAULT 0,
@@ -347,9 +349,61 @@ function initDatabase() {
     );
   `);
 
+  const tableInfo = db.prepare("PRAGMA table_info(customers)").all();
+  const coordCol = tableInfo.find((c) => c.name === "coordinates_json");
+  if (coordCol && coordCol.notnull === 1) {
+    db.pragma("foreign_keys = OFF");
+    try {
+      db.transaction(() => {
+        db.exec(`
+          DROP TABLE IF EXISTS customers_temp;
+          CREATE TABLE customers_temp AS SELECT * FROM customers;
+          DROP TABLE customers;
+          CREATE TABLE customers (
+            id VARCHAR(64) PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            contact_number VARCHAR(50) NOT NULL,
+            email VARCHAR(150) DEFAULT NULL,
+            customer_type VARCHAR(50) NOT NULL CHECK(customer_type IN ('walk-in', 'regular', 'reseller')),
+            primary_address VARCHAR(255) NOT NULL,
+            barangay VARCHAR(100) NOT NULL,
+            city VARCHAR(100) DEFAULT 'Binalbagan',
+            coordinates_json TEXT DEFAULT NULL,
+            delivery_notes TEXT DEFAULT NULL,
+            containers_held INT NOT NULL DEFAULT 0,
+            total_orders INT NOT NULL DEFAULT 0,
+            total_spent DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            registered_date VARCHAR(30) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+            additional_locations_json TEXT DEFAULT NULL
+          );
+          INSERT INTO customers (
+            id, name, contact_number, email, customer_type, primary_address, barangay, city,
+            coordinates_json, delivery_notes, containers_held, total_orders, total_spent,
+            registered_date, status, additional_locations_json
+          )
+          SELECT
+            id, name, contact_number, email, customer_type, primary_address, barangay, city,
+            coordinates_json, delivery_notes, containers_held, total_orders, total_spent,
+            registered_date, status, additional_locations_json
+          FROM customers_temp;
+          DROP TABLE customers_temp;
+        `);
+      })();
+    } finally {
+      db.pragma("foreign_keys = ON");
+    }
+  }
+
   const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
   if (userCount === 0) {
     seedInitialData();
+  }
+
+  const pinsCleared = db.prepare("SELECT meta_value FROM app_meta WHERE meta_key = 'pins_cleared_v1'").get();
+  if (!pinsCleared) {
+    db.prepare("UPDATE customers SET coordinates_json = NULL, additional_locations_json = NULL").run();
+    db.prepare("INSERT OR REPLACE INTO app_meta (meta_key, meta_value) VALUES ('pins_cleared_v1', '1')").run();
   }
 }
 
