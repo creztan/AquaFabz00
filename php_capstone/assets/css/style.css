@@ -1,0 +1,95 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+}
+.hidden { display: none !important; }
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 32px;
+}
+.login-card h1 { margin: 0 0 6px; font-size: 20px; }
+.subtitle { margin: 0 0 20px; font-size: 13px; color: #475569; }
+label { display: block; font-size: 12px; font-weight: 600; margin: 12px 0 6px; }
+input, select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.btn-primary {
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 16px;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-secondary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 14px;
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.workspace { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 250px;
+  background: #0f172a;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px;
+}
+.brand { font-weight: 700; font-size: 15px; padding: 0 10px 16px; border-bottom: 1px solid #1e293b; }
+#role-nav { flex: 1; margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+#role-nav button {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+#role-nav button.active { background: #0284c7; color: #ffffff; font-weight: 600; }
+.main-panel { flex: 1; display: flex; flex-direction: column; }
+.topbar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 14px 24px; font-weight: 600; }
+.content { padding: 24px; max-width: 1200px; }
+.card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+th { background: #f8fafc; font-weight: 600; color: #475569; }

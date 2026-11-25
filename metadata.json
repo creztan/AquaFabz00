@@ -1,0 +1,6 @@
+{
+  "name": "Aqua Fabz Water Refilling Station Management System",
+  "description": "Web-Based Sales, Inventory, Customer, and Location Mapping Management System for Aqua Fabz Water Refilling Station.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
